@@ -11,8 +11,11 @@ def get_img_ref(picture_soup):
 
 
 def get_last_img_ref(pictures_soup):
-    last_img = pictures_soup[-1]
-    return get_img_ref(last_img)
+    try:
+        last_img = pictures_soup[-1]
+        return get_img_ref(last_img)
+    except IndexError:
+        return 0
 
 
 if __name__ == '__main__':
@@ -41,16 +44,24 @@ if __name__ == '__main__':
         pictures_soup = BeautifulSoup(pictures_page.content, 'html.parser')
         pictures = pictures_soup.find_all('div', class_='photo-list-photo-view')
         last_img_ref = get_last_img_ref(pictures)
-        pictures_page = requests.get('{}/with/{}'.format(album_url, last_img_ref))
-        if previous_img_ref != last_img_ref:
-            previous_img_ref = last_img_ref
+        if last_img_ref != 0:
+            pictures_page = requests.get('{}/with/{}'.format(album_url, last_img_ref))
+            if previous_img_ref != last_img_ref:
+                previous_img_ref = last_img_ref
+                previous_pictures = pictures
+            else:
+                needs_paging = False
         else:
             needs_paging = False
+            pictures = previous_pictures
 
+    total_ok = 0
+    total_fail = 0
     for picture in pictures:
         img_ref = get_img_ref(picture)
         img_path = '{}/{}.jpg'.format(output_dir, img_ref)
         if os.path.isfile(img_path):
+            total_ok += 1
             print('    > Picture {} already axists'.format(img_ref))
         else:
             img_sizes_url = '{}/{}{}'.format(base_url, img_ref, '/sizes/l/')
@@ -66,6 +77,9 @@ if __name__ == '__main__':
                 img_data = requests.get(img_url).content
                 with open(img_path, 'wb') as handler:
                     handler.write(img_data)
+                total_ok += 1
                 print('    > Picture {} dowloaded'.format(img_ref))
             except AttributeError:
+                total_fail += 1
                 print('    > Picture {} skipped due to an attribute problem'.format(img_ref))
+    print('==> Total downloaded: {} / Total failed: {}'.format(total_ok, total_fail))
